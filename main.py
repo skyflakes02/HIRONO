@@ -21,7 +21,6 @@ class BattleCity:
         self.enemy_tank_1_count = 0  
         self.enemy_tank_2_count = 0
         self.cells = self.create_cells()
-        self.create_corner_mirrors()
         self.game_over = False
         self.game_won = False
         self.player_lives = 2  
@@ -44,27 +43,21 @@ class BattleCity:
     def create_cells(self):
         cells = []
         home_created = False
-        mirror_cells_placed = False 
         power_up_count = 0
+
+        cells.append(Cell(16, 16, MIRROR_NE))    
+        cells.append(Cell(415 - 2 * 16, 16, MIRROR_SE))  
+        cells.append(Cell(16, 250 - 2 * 16, MIRROR_SE))  
+        cells.append(Cell(415 - 2 * 16, 250 - 2 * 16, MIRROR_NE))
         
         for y in range(10, 250, 16):
             for x in range(0, 415, 16):
                 cell_type = EMPTY
 
-                if x != 415 - 16 and y != 250 - 16:
-                    self.exists = False
-
-                elif x != 415 - 16 and 415 - 16:
-                    self.exists = False
-
-                elif not home_created and x == 12 * 16 and y == 250 - 16:
+                if not home_created and x == 12 * 16 and y == 250 - 16:
                     cell_type = HOME
                     home_created = True
-
-                elif not mirror_cells_placed and (x == 16 or x == 415 - 2 * 16) and (y == 16 or y == 250 - 2 * 16):
-                    cell_type = MIRROR_NE if x == 16 and y == 16 else MIRROR_SE
-                    mirror_cells_placed = True 
-
+                     
                 elif random.random() < 0.1 and power_up_count < 2: 
                     cell_type = POWER_UP
                     power_up_count += 1
@@ -74,19 +67,14 @@ class BattleCity:
 
                 else:
                     cell_type = random.choice([BRICK, STONE, WATER, FOREST])
-
-                cells.append(Cell(x, y, cell_type))
                 
+                if (x != 16 and y != 16) and (x != 415 - 2 * 16 and y != 250 - 2 * 16) and (x != 415 - 2 * 16 and y != 16) and (x != 16 and y != 250 - 2 * 16):
+                    cells.append(Cell(x, y, cell_type))
+
         return cells
     
     def draw_explosion(self, x, y):
         pyxel.blt(x, y, 0, 16, 80, 16, 16, 0)
-
-    def create_corner_mirrors(self):
-        self.cells.append(Cell(16, 16, MIRROR_NE))    
-        self.cells.append(Cell(415 - 2 * 16, 16, MIRROR_SE))  
-        self.cells.append(Cell(16, 250 - 2 * 16, MIRROR_SE))  
-        self.cells.append(Cell(415 - 2 * 16, 250 - 2 * 16, MIRROR_NE))
 
     def is_position_valid(self, x, y, cells):
         for cell in cells:
@@ -306,7 +294,7 @@ class BattleCity:
                 self.enemy_tank_2.hits += 1
                 self.start_explosion(bullet)
                 if self.enemy_tank_2.hits >= 3:
-                    self.enemy_tank_2_count += 1
+                    self.enemy_tank_2_count += 1 
                     if self.enemy_tank_2_count >= 10:
                         self.game_won = True
                     else:
