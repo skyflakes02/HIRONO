@@ -3,6 +3,9 @@ import random
 from stage import Cell, Bullet, EnemyTank, EnemyTank2
 
 UP, RIGHT, DOWN, LEFT = 0, 1, 2, 3
+inpot_text = ""
+max_input_length = 10
+input_active = False
 
 EMPTY, BRICK, STONE, WATER, SEMI_CRACKED_BRICK, CRACKED_BRICK, FOREST, HOME, MIRROR_NE, MIRROR_SE, POWER_UP, BOMB = range(12)
     
@@ -32,6 +35,7 @@ class BattleCity:
         self.exploding = False
         self.explosion_timer = 0
         self.stage = 1  
+        pyxel.mouse(visible=True)
 
         pyxel.sound(0).set("a2", "t", "7", "n", 3)  # Player shooting sound
         pyxel.sound(1).set("c3", "t", "6", "f", 5)  # Enemy shooting
@@ -69,7 +73,7 @@ class BattleCity:
                 else:
                     cell_type = random.choice([BRICK, STONE, WATER, FOREST])
                 
-                if (x != 4 * 16 and y != 250 - 16 * 16) and (x != 21 * 16 and y != 250 - 2 * 16) and (x != 0 * 16 and y!= 250 - 4 * 16) and (x != 16 and y != 16) and (x != 415 - 2 * 16 and y != 250 - 2 * 16) and (x != 415 - 2 * 16 and y != 16) and (x != 16 and y != 250 - 2 * 16):
+                if (x != 4 * 16 and y != 250 - 16 * 16) and (x != 21 * 16 and y != 250 - 2 * 16) and (x != 0 * 16 and y!= 250 - 4 * 16) and (x != 24 * 16) and (x != 16 and y != 16) and (x != 415 - 2 * 16 and y != 250 - 2 * 16) and (x != 415 - 2 * 16 and y != 16) and (x != 16 and y != 250 - 2 * 16):
                     cells.append(Cell(x, y, cell_type))
 
         return cells
@@ -146,7 +150,7 @@ class BattleCity:
                             self.reset_stage()
                         else:
                             self.game_won = True
-                            pyxel.play(0, 4) 
+                            pyxel.play(0, 4)
 
         for bullet in self.player_bullets:
             bullet.update()
@@ -179,6 +183,7 @@ class BattleCity:
             if (bullet.x + 2 >= self.tank_x and bullet.x <= self.tank_x + 16 and 
                 bullet.y + 2 >= self.tank_y and bullet.y <= self.tank_y + 16):
                 self.player_lives -= 1
+                bullet.exists = False 
                 if self.player_lives <= 0:
                     self.game_over = True
                     pyxel.play(0, 2)
@@ -547,8 +552,33 @@ class BattleCity:
         self.player_lives = True
         self.reset_stage()
 
+    def text(self):
+        global input_active, input_text
+
+        if pyxel.btnp(pyxel.KEY_ENTER):
+            input_active = not input_active
+            if not input_active:
+                process_input(input_text)
+                inpot_text = ""
+
+            if input_active:
+                for i in range(256):
+                    if pyxel.btnp(i):
+                        if len(input_text) < max_input_length:
+                            if i >= pyxel.KEY_A and i <= pyxel.KEY_Z:
+                                inpot_text += chr(ord('A') + (i - pyxel.KEY_A))
+                            elif i == pyxel.KEY_SPACE:
+                                input_text += " "
+    def process_input(text):
+        print("Cheat Code: ", text)
+
     def draw(self):
         pyxel.cls(0)
+
+        #pyxel.rect(0, 250 - 250, 415 - 15 * 16, 8, 7)
+
+        #if input_active:
+            #pyxel.text(12, 250 - 20, input_text, 0)
 
         for cell in self.cells:
             cell.draw()
