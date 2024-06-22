@@ -2,10 +2,7 @@ import pyxel
 import random
 from stage import Cell, Bullet, EnemyTank, EnemyTank2
 
-UP, RIGHT, DOWN, LEFT = 0, 1, 2, 3
-inpot_text = ""
-max_input_length = 10
-input_active = False
+UP, RIGHT, DOWN, LEFT, STOP = 0, 1, 2, 3, 4
 
 EMPTY, BRICK, STONE, WATER, SEMI_CRACKED_BRICK, CRACKED_BRICK, FOREST, HOME, MIRROR_NE, MIRROR_SE, POWER_UP, BOMB = range(12)
     
@@ -32,10 +29,12 @@ class BattleCity:
         self.power_up_active = False
         self.power_up_cells = [(random.randint(0, 30) * 16, random.randint(0, 15) * 16) for _ in range(2)]
         self.bomb_explode = False
-        self.exploding = False
-        self.explosion_timer = 0
         self.stage = 1  
         pyxel.mouse(visible=True)
+
+        self.input_mode = False
+        self.input_text = ""
+        self.message = "Press '0' to enter code"
 
         pyxel.sound(0).set("a2", "t", "7", "n", 3)  # Player shooting sound
         pyxel.sound(1).set("c3", "t", "6", "f", 5)  # Enemy shooting
@@ -57,7 +56,7 @@ class BattleCity:
         
         for y in range(10, 250, 16):
             for x in range(0, 415, 16):
-                cell_type = EMPTY
+                cell_type = random.choice([BRICK, STONE, WATER, FOREST])
 
                 if not home_created and x == 12 * 16 and y == 250 - 8 * 16:
                     cell_type = HOME
@@ -69,20 +68,14 @@ class BattleCity:
 
                 elif random.random() < 0.7: 
                     cell_type = EMPTY
-
-                else:
-                    cell_type = random.choice([BRICK, STONE, WATER, FOREST])
                 
                 if (x != 4 * 16 and y != 250 - 16 * 16) and (x != 21 * 16 and y != 250 - 2 * 16) and (x != 0 * 16 and y!= 250 - 4 * 16) and (x != 24 * 16) and (x != 16 and y != 16) and (x != 415 - 2 * 16 and y != 250 - 2 * 16) and (x != 415 - 2 * 16 and y != 16) and (x != 16 and y != 250 - 2 * 16):
                     cells.append(Cell(x, y, cell_type))
 
         return cells
-    
-    def draw_explosion(self, x, y):
-        pyxel.blt(x, y, 0, 16, 80, 16, 16, 0)
-
-    def is_position_valid(self, x, y, cells):
-        for cell in cells:
+ 
+    def is_position_valid(self, x, y, cells, cells_2):
+        for cell in cells or cells_2:
             if cell.x == x and cell.y == y:
                 return False
         return True
@@ -125,32 +118,23 @@ class BattleCity:
                 bullet.exists = False
                 if self.enemy_tank_1.is_destroyed(): 
                     self.enemy_tank_1_count += 1
-                    if self.enemy_tank_1_count < 3: 
-                        self.enemy_tank_1 = EnemyTank()
-                    else: 
-                        if self.stage == 1:
-                            self.stage = 2
-                            self.reset_stage()
-                        else:
-                            self.game_won = True
-                            pyxel.play(0, 4) 
+                    self.enemy_tank_1 = EnemyTank()
 
-            if  (bullet.x + 2 >= self.enemy_tank_2.x and bullet.x <= self.enemy_tank_2.x + 16 and 
+            if (bullet.x + 2 >= self.enemy_tank_2.x and bullet.x <= self.enemy_tank_2.x + 16 and 
                 bullet.y + 2 >= self.enemy_tank_2.y and bullet.y <= self.enemy_tank_2.y + 16):
                 self.enemy_tank_2.hits += 1
                 bullet.exists = False
                 pyxel.play(0, 3)
                 if self.enemy_tank_2.is_destroyed():
                     self.enemy_tank_2_count += 1
-                    if self.enemy_tank_2_count < 3: 
-                        self.enemy_tank_2 = EnemyTank2()
-                    else:
-                        if self.stage == 1:
-                            self.stage = 2
-                            self.reset_stage()
-                        else:
-                            self.game_won = True
-                            pyxel.play(0, 4)
+                    self.enemy_tank_2 = EnemyTank2()
+
+        if self.enemy_tank_1_count + self.enemy_tank_2_count == 6: 
+            self.game_won = True
+            pyxel.play(0, 4)
+        elif self.player_lives == 0:
+            self.game_over == True
+            self.reset_game()
 
         for bullet in self.player_bullets:
             bullet.update()
@@ -198,11 +182,12 @@ class BattleCity:
             self.player_lives += 1
             self.power_up_active = False
 
+        self.handle_power_up_collision()
+
         if self.bomb_explode:
             self.player_lives -= 1
             self.bomb_explode = False
 
-        self.handle_power_up_collision()
         self.handle_bomb_collision()
 
         if pyxel.btn(pyxel.KEY_N):
@@ -215,6 +200,8 @@ class BattleCity:
         else:
             pyxel.playm(0, loop=True)
 
+        self.cheat_code()
+
     def handle_bomb_collision(self):
         for cell in self.cells:
             if cell.cell_type == BOMB:
@@ -225,6 +212,7 @@ class BattleCity:
                     cell.cell_type = EMPTY
                     self.bomb_explode = True
                     pyxel.play(0, 2)
+
 
     def handle_power_up_collision(self):
         for cell in self.cells:
@@ -239,7 +227,7 @@ class BattleCity:
 
     def is_collision_with_cells(self, x, y):
         for cell in self.cells:
-            if cell.exists and cell.cell_type in {BRICK, STONE, WATER, SEMI_CRACKED_BRICK, CRACKED_BRICK, HOME, MIRROR_NE, MIRROR_SE}:
+            if cell.exists and cell.cell_type in {BRICK, STONE, WATER, SEMI_CRACKED_BRICK, CRACKED_BRICK, MIRROR_NE, MIRROR_SE}:
                 if (x < cell.x + 16 and
                     x + 16 > cell.x and
                     y < cell.y + 16 and
@@ -250,19 +238,12 @@ class BattleCity:
                         self.handle_bomb_collision()
                     return True
         return False
-
+    
     def update_bullets(self):
         for bullet in self.player_bullets:
             bullet.update()
             if bullet.is_off_screen():
                 bullet.exists = False
-
-        for bullet in self.player_bullets:
-            if bullet.exploding:
-                bullet.explosion_timer += 1
-                if bullet.explosion_timer > 10:
-                    self.bullet = False
-                return
 
             if bullet.direction == UP:
                 bullet.y -= 2
@@ -277,46 +258,6 @@ class BattleCity:
                 self.bullets = False
                 return
             
-            cell_x = bullet.x // 16
-            cell_y = bullet.y // 16
-            if self.cells[cell_y][cell_x] == 1:  # Assume 1 represents bricks
-                self.cells[cell_y][cell_x] = 0
-                self.start_explosion(bullet)
-            elif self.cells[cell_y][cell_x] == 4:  # Mirror cell
-                if bullet.direction == UP:
-                    bullet.direction = DOWN
-                elif bullet.direction == DOWN:
-                    bullet.direction = UP
-                elif bullet.direction == LEFT:
-                    bullet.direction = RIGHT
-                elif bullet.direction == RIGHT:
-                    bullet.direction = LEFT
-
-            if self.enemy_tank_1.x <= bullet.x <= self.enemy_tank_1.x + 16 and self.enemy_tank_1.y <= bullet.y <= self.enemy_tank_1.y + 16:
-                self.enemy_tank_1.hits += 1
-                self.start_explosion(bullet)
-                if self.enemy_tank_1.hits >= 3:
-                    self.enemy_tank_1_count += 1
-                    if self.enemy_tank_1_count >= 10:
-                        self.game_won = True
-                    else:
-                        self.enemy_tank_1 = EnemyTank()
-                pyxel.play(1, 3)
-
-            if self.enemy_tank_2.x <= bullet.x <= self.enemy_tank_2.x + 16 and self.enemy_tank_2.y <= bullet.y <= self.enemy_tank_2.y + 16:
-                self.enemy_tank_2.hits += 1
-                self.start_explosion(bullet)
-                if self.enemy_tank_2.hits >= 3:
-                    self.enemy_tank_2_count += 1 
-                    if self.enemy_tank_2_count >= 10:
-                        self.game_won = True
-                    else:
-                        self.enemy_tank_2 = EnemyTank2()
-                pyxel.play(1, 3)
-
-
-        self.player_bullets = [bullet for bullet in self.player_bullets if bullet.exists]
-
         for bullet in self.enemy_tank_1.bullets:
             bullet.update()
             if bullet.is_off_screen():
@@ -331,11 +272,6 @@ class BattleCity:
 
         self.enemy_tank_2.bullets = [bullet for bullet in self.enemy_tank_2.bullets if bullet.exists]
 
-    def start_explosion(self, bullet):
-        bullet.exploding = True
-        bullet.explosion_timer = 0
-        pyxel.play(2, 2)
-
     def update_enemy_tank(self):
         self.enemy_tank_1.update(self.cells)
         self.enemy_tank_2.update(self.cells)
@@ -346,7 +282,7 @@ class BattleCity:
                 continue
 
             for cell in self.cells:
-                if cell.exists and cell.cell_type in {BRICK, SEMI_CRACKED_BRICK, CRACKED_BRICK, STONE, HOME}:
+                if cell.exists and cell.cell_type in {BRICK, SEMI_CRACKED_BRICK, HOME, CRACKED_BRICK, STONE}:
                     if (bullet.x < cell.x + 16 and
                         bullet.x + 2 > cell.x and
                         bullet.y < cell.y + 16 and
@@ -366,40 +302,12 @@ class BattleCity:
                             cell.exists = False
                         elif cell.cell_type == POWER_UP:
                             cell.exists = False
-                        elif cell.cell_type == BOMB:
-                            cell.exists = False
                         elif cell.cell_type == HOME:
                             cell.exists = False
                             self.game_over = True
+                        elif cell.cell_type == BOMB:
+                            cell.exists = False
                         break
-
-            if (bullet.x < self.enemy_tank_1.x + 16 and
-                bullet.x + 2 > self.enemy_tank_1.x and
-                bullet.y < self.enemy_tank_1.y + 16 and
-                bullet.y + 2 > self.enemy_tank_1.y):
-                bullet.exists = False
-                self.enemy_tank_1.hits += 1
-                pyxel.play(0, 3)
-                if self.enemy_tank_1.is_destroyed():
-                    self.enemy_tank_1_count += 1
-                    if self.enemy_tank_1_count == 1:
-                        self.enemy_tank_1 = EnemyTank() 
-                    else:
-                        self.game_won = True
-
-            if (bullet.x < self.enemy_tank_2.x + 16 and
-                bullet.x + 2 > self.enemy_tank_2.x and
-                bullet.y < self.enemy_tank_2.y + 16 and
-                bullet.y + 2 > self.enemy_tank_2.y):
-                bullet.exists = False
-                self.enemy_tank_2.hits += 1
-                pyxel.play(0, 3)
-                if self.enemy_tank_2.is_destroyed():
-                    self.enemy_tank_2_count += 1
-                    if self.enemy_tank_2_count == 1:
-                        self.enemy_tank_2 = EnemyTank2()
-                    else:
-                        self.game_won = True
 
         for bullet in self.enemy_tank_1.bullets:
             if not bullet.exists:
@@ -547,44 +455,45 @@ class BattleCity:
         self.player_bullets.append(bullet)
         pyxel.play(0, 0)
 
-    def reset_stage(self):
-        self.stage = 1
-        self.player_lives = True
-        self.reset_stage()
+    def cheat_code(self):
+        if pyxel.btnp(pyxel.KEY_0):
+            self.input_mode = True
+            if self.input_mode:
+                self.input_text = ""
+                if self.message == "Press '0' to enter code" or "Incorrect code. Press '0' to re-enter.":
+                    self.message = ""
 
-    def text(self):
-        global input_active, input_text
+        if self.input_mode:
+            for i in range(pyxel.KEY_A, pyxel.KEY_Z + 1):
+                if pyxel.btnp(i):
+                    self.input_text += chr(i).lower()
 
-        if pyxel.btnp(pyxel.KEY_ENTER):
-            input_active = not input_active
-            if not input_active:
-                process_input(input_text)
-                inpot_text = ""
+        if pyxel.btnp(pyxel.KEY_BACKSPACE):
+            self.input_text = self.input_text[:-1]
 
-            if input_active:
-                for i in range(256):
-                    if pyxel.btnp(i):
-                        if len(input_text) < max_input_length:
-                            if i >= pyxel.KEY_A and i <= pyxel.KEY_Z:
-                                inpot_text += chr(ord('A') + (i - pyxel.KEY_A))
-                            elif i == pyxel.KEY_SPACE:
-                                input_text += " "
-    def process_input(text):
-        print("Cheat Code: ", text)
+        if pyxel.btnp(pyxel.KEY_RETURN):
+            if self.input_text == "hope":
+                self.input_mode = False
+                self.game_won = True
+                pyxel.play(0, 4)
+            else:
+                self.message = "Incorrect code. Press '0' to re-enter."
+                self.input_mode = False
 
     def draw(self):
         pyxel.cls(0)
 
-        #pyxel.rect(0, 250 - 250, 415 - 15 * 16, 8, 7)
-
-        #if input_active:
-            #pyxel.text(12, 250 - 20, input_text, 0)
-
         for cell in self.cells:
-            cell.draw()
+            cell.draw()          
 
         self.enemy_tank_1.draw()
         self.enemy_tank_2.draw()
+
+        pyxel.text(130, 2, self.message, 7)
+
+        if self.input_mode: 
+            pyxel.text(130, 2, "Enter Code:", 7)
+            pyxel.text(11*16, 2, self.input_text, 7)
 
         if self.tank_direction == UP:
             pyxel.blt(self.tank_x, self.tank_y, 0, 0, 0, 16, 16, 0)
@@ -596,22 +505,16 @@ class BattleCity:
             pyxel.blt(self.tank_x, self.tank_y, 0, 48, 0, 16, 16, 0)
 
         for bullet in self.player_bullets:
-            if self.exploding:
-                pyxel.blt(self.x, self.y, 0, 16, 80, 16, 16, 0)
-            else: 
-                pyxel.circ(bullet.x, bullet.y, 2, 12)
+            pyxel.circ(bullet.x, bullet.y, 2, 12)
 
         for bullet in self.enemy_tank_1.bullets:
-            if self.exploding:
-                pyxel.blt(self.x, self.y, 0, 16, 80, 16, 16, 0)
-            else:
-                pyxel.circ(bullet.x, bullet.y, 2, 4)
+            pyxel.circ(bullet.x, bullet.y, 2, 4)
 
         for bullet in self.enemy_tank_2.bullets:
             pyxel.blt(bullet.x, bullet.y, 0, 32 , 80, 16, 16, 0)
 
         pyxel.text(5, 2, f"LIVES: {self.player_lives}", 8)
-        pyxel.text(65, 2, f"TANK DESTROYED : {self.enemy_tank_1_count or self.enemy_tank_2_count}", 8)
+        pyxel.text(65, 2, f"KILLS : {self.enemy_tank_1_count + self.enemy_tank_2_count}", 8)
 
         if self.game_over:
             pyxel.cls(0)
@@ -659,4 +562,5 @@ class BattleCity:
             self.shoot_timer = 0
 
 BattleCity()
+
 
